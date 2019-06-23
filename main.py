@@ -5,17 +5,16 @@ from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import ccf
 from statsmodels.tsa.arima_model import ARMA
+from scipy.signal import spectrogram
 import seaborn as sns
 import numpy as np
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
-from scipy.signal import spectrogram
-
 
 # path to data
 PATH_TO_DATA = './data/PJMW_hourly.csv'
-# path to folder where we want to save plots
+# path to folder where we want to save the plots
 PATH_TO_PLOTS = './plots'
 # type of separator in data file
 SEPARATOR = ','
@@ -24,7 +23,7 @@ HEADER = 0
 # take data from the last 8 years
 TAKE_LAST = '8Y'
 # divide into a training and test set
-SPLIT_DATE = '2016-06-01' # '2018-06-01'
+SPLIT_DATE = '2016-06-01'
 # the maximum order of the model
 MAX_P = 16
 # number of phases to plot
@@ -32,7 +31,7 @@ NR_OF_PHASES_TO_PLOT = 5
 # other model parameters
 PARAMS = {'method': 'mle', 'solver': 'lbfgs',  'maxiter': 500, 'trend': 'c', 'transparams': True, 'disp': False}
 
-# the function returns a list of dictionaries
+# function returns a list of dictionaries
 def get_k_roots_with_largest_radiuses(coeffs, k):
     roots = np.roots(coeffs)
     are_original_radiuses_in_unit_circle = []
@@ -97,6 +96,7 @@ plt.gcf().set_size_inches(10, plt.gcf().get_size_inches()[1])
 f.savefig(PATH_TO_PLOTS + '/autocorrelation.pdf', bbox_inches='tight')
 plt.show()
 
+# plot spectrogram
 f = plt.figure()
 freq, t1, Sxx = spectrogram(series_monthly.values, fs=3.86e-7, nfft=128,  window=('tukey', 0.25),
                             nperseg=6, noverlap=4, detrend=False, scaling='density')
@@ -214,7 +214,7 @@ plt.ylabel('Moc [MW]')
 f.savefig('./plots/boxplot.pdf', bbox_inches='tight')
 plt.show()
 
-# get coeffs without const
+# get coefficients without const
 coefficients_list = [[1] + [*d.values][1:] for d in coefficients]
 # get info about roots
 roots = [get_k_roots_with_largest_radiuses(r, NR_OF_PHASES_TO_PLOT) for r in coefficients_list]

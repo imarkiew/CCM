@@ -97,16 +97,6 @@ plt.gcf().set_size_inches(10, plt.gcf().get_size_inches()[1])
 f.savefig(PATH_TO_PLOTS + '/autocorrelation.pdf', bbox_inches='tight')
 plt.show()
 
-# plot spectrogram
-# f = plt.figure()
-# plt.specgram(series_monthly.values, Fs=3.86e-7, NFFT=128, window=np.hanning(16), noverlap=32, detrend='none', scale='dB')
-# plt.title('Spektrogram')
-# plt.xlabel('Czas [s]')
-# plt.ylabel('Częstotliwość [Hz]')
-# plt.colorbar().set_label('Intensywność [dB]')
-# f.savefig(PATH_TO_PLOTS + '/spectrogram.pdf', bbox_inches='tight')
-# plt.show()
-
 f = plt.figure()
 freq, t1, Sxx = spectrogram(series_monthly.values, fs=3.86e-7, nfft=128,  window=('tukey', 0.25),
                             nperseg=6, noverlap=4, detrend=False, scaling='density')

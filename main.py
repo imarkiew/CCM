@@ -20,19 +20,19 @@ PATH_TO_PLOTS = './plots'
 SEPARATOR = ','
 # header location
 HEADER = 0
-# take data from the last 8 years
-TAKE_LAST = '8Y'
 # divide into a training and test set
-SPLIT_DATE = '2016-06-01'
+SPLIT_DATE = '2013-06-01'
 # the maximum order of the model
-MAX_P = 16
-# number of phases to plot
-NR_OF_PHASES_TO_PLOT = 5
+MAX_P = 18
+# number of phase to plot
+NR_OF_PHASES_TO_PLOT = 6
+# sampling frequency (1/month)
+FS = 1.0
 # other model parameters
 PARAMS = {'method': 'mle', 'solver': 'lbfgs',  'maxiter': 500, 'trend': 'c', 'transparams': True, 'disp': False}
 
 # function returns a list of dictionaries
-def get_k_roots_with_largest_radiuses(coeffs, k):
+def get_k_roots_with_largest_radiuses(coeffs, k, fs):
     roots = np.roots(coeffs)
     are_original_radiuses_in_unit_circle = []
     radiuses = []
@@ -43,11 +43,11 @@ def get_k_roots_with_largest_radiuses(coeffs, k):
             are_original_radiuses_in_unit_circle.append(False)
             inversed_root = complex_inverse(original_root)
             radiuses.append(np.abs(inversed_root))
-            phases.append(convert_phase_to_new_domain(np.angle(inversed_root, deg=True)))
+            phases.append(convert_phase_to_freq(np.angle(inversed_root, deg=True), fs))
         else:
             are_original_radiuses_in_unit_circle.append(True)
             radiuses.append(original_radius)
-            phases.append(convert_phase_to_new_domain(np.angle(original_root, deg=True)))
+            phases.append(convert_phase_to_freq(np.angle(original_root, deg=True), fs))
 
     roots = sorted([{'was_original_radius_in_unit_circle': was_original_radius_in_unit_circle,
                      'radius': radius,
@@ -58,11 +58,14 @@ def get_k_roots_with_largest_radiuses(coeffs, k):
 def complex_inverse(z):
     return 1.0 / np.conjugate(z)
 
-def convert_phase_to_new_domain(phase):
+def convert_phase_to_freq(phase, fs):
+    def convert_to_freq(phase, fs):
+        return fs*phase / 360.0
+
     if phase >= 180:
-        return phase - 360
+        return convert_to_freq(phase - 360.0, fs)
     else:
-        return phase
+        return convert_to_freq(phase, fs)
 
 # reading the data
 series = Series.from_csv(PATH_TO_DATA, sep=SEPARATOR, header=HEADER)
@@ -73,14 +76,14 @@ series.index = pd.to_datetime(series.index, infer_datetime_format='True')
 # sorting
 series.sort_index(inplace=True)
 
-# take measurements for a recent period, group values by month in each year and then calculate mean
-series_monthly = series.last(TAKE_LAST).groupby(pd.Grouper(freq='M')).mean()
+# group values by month in each year and then calculate mean
+series_monthly = series.groupby(pd.Grouper(freq='M')).mean()
 
 # plot a whole time series
 f = plt.figure()
 plt.plot(series_monthly)
 plt.gcf().set_size_inches(10, plt.gcf().get_size_inches()[1])
-plt.title('Średnie zużycie energii elektrycznej w skali miesięcznej na przestrzeni 8 lat')
+plt.title('Średnie zużycie energii elektrycznej w skali miesięcznej')
 plt.xlabel('Data')
 plt.ylabel('Zużycie [MW]')
 plt.grid()
@@ -98,12 +101,12 @@ plt.show()
 
 # plot spectrogram
 f = plt.figure()
-freq, t1, Sxx = spectrogram(series_monthly.values, fs=3.86e-7, nfft=128,  window=('tukey', 0.25),
-                            nperseg=6, noverlap=4, detrend=False, scaling='density')
-plt.pcolormesh(t1, freq, Sxx)
-plt.xlabel('Czas [s]')
-plt.ylabel('Częstotliwość [Hz]')
-plt.colorbar().set_label('Widmowa gęstość mocy [V^2/Hz]')
+freq, t, Sxx = spectrogram(series_monthly.values, fs=FS, nfft=256, window=('tukey', 0.25), detrend='constant',
+                           nperseg=60, noverlap=30, scaling='density')
+plt.pcolormesh(t, freq, Sxx)
+plt.xlabel('Czas [mies]')
+plt.ylabel('Częstotliwość [1/mies]')
+plt.colorbar().set_label('Widmowa gęstość mocy [V^2/1/mies]')
 f.savefig(PATH_TO_PLOTS + '/spectrogram.pdf', bbox_inches='tight')
 plt.show()
 
@@ -151,7 +154,6 @@ plt.show()
 # find the lag with the smallest aic
 lag = min(aics, key=aics.get)
 print('Optimal lag = {}'.format(lag))
-# lag = 13
 
 # train-test procedure using moving window
 series_len = len(series_monthly)
@@ -187,7 +189,7 @@ plt.show()
 # plot crosscorrelation
 f = plt.figure()
 plt.plot(ccf(test, y_pred, unbiased=True))
-plt.title('Korelacja krzyżowa szeregów test i pred')
+plt.title('Korelacja wzajemna szeregów test i pred')
 plt.xlabel('Opóźnienie')
 plt.ylabel('Korelacja')
 plt.grid()
@@ -217,7 +219,7 @@ plt.show()
 # get coefficients without const
 coefficients_list = [[1] + [*d.values][1:] for d in coefficients]
 # get info about roots
-roots = [get_k_roots_with_largest_radiuses(r, NR_OF_PHASES_TO_PLOT) for r in coefficients_list]
+roots = [get_k_roots_with_largest_radiuses(r, NR_OF_PHASES_TO_PLOT, FS) for r in coefficients_list]
 
 # plot the phases (from -180 to 180 degrees) of polynomial roots over time (roots are sorted by non-increasing radius)
 f = plt.figure(figsize=(12, 12))
@@ -232,7 +234,7 @@ for i in range(NR_OF_PHASES_TO_PLOT):
             colour = 'ro'
         plt.plot(j + 1, phase, colour)
     plt.grid()
-    plt.xticks(range(1, len(roots) + 1))
+    plt.xticks(range(1, len(roots) + 1, 2))
 plt.xlabel('Numer próbki')
 f.savefig('./plots/phases.pdf', bbox_inches='tight')
 plt.show()
